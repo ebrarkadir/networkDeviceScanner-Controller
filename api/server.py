@@ -1,5 +1,8 @@
 import sys
 import os
+import subprocess
+
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # Üst dizini modül yoluna ekle
 
 from flask import Flask, jsonify, request
@@ -67,6 +70,29 @@ def label_device():
     }
     save_device_info(info)
     return jsonify({"success": True})
+
+@app.route("/block", methods=["POST"])
+def block_device():
+    data = request.get_json()
+    ip = data.get("ip")
+
+    if not ip:
+        return jsonify({"success": False, "error": "IP missing"}), 400
+
+    try:
+        # iptables ile gelen IP'nin internet erişimini engelle
+        subprocess.run(
+            ["sudo", "iptables", "-A", "OUTPUT", "-d", ip, "-j", "DROP"],
+            check=True
+        )
+        subprocess.run(
+            ["sudo", "iptables", "-A", "FORWARD", "-d", ip, "-j", "DROP"],
+            check=True
+        )
+        return jsonify({"success": True, "blocked_ip": ip})
+    except subprocess.CalledProcessError as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 
 # Otomatik tahmin fonksiyonu (mobilde de kullanılabilir)
