@@ -1,0 +1,18 @@
+{
+  "192.168.1.100": {
+    "name": "Ak\u0131ll\u0131 Priz",
+    "type": "IoT Cihaz\u0131"
+  },
+  "192.168.1.10": {
+    "name": "tplink modem",
+    "type": "router"
+  },
+  "192.168.1.102": {
+    "name": "Fedora",
+    "type": "Bilgisayar"
+  },
+  "192.168.1.101": {
+    "name": "Samsung 24Fe",
+    "type": "Telefon"
+  }
+}
