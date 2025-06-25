@@ -94,6 +94,19 @@ def block_device():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/unblock", methods=["POST"])
+def unblock():
+    data = request.get_json()
+    ip = data.get("ip")
+    if not ip:
+        return jsonify({"success": False, "message": "IP address missing"}), 400
+
+    try:
+        subprocess.run(["sudo", "iptables", "-D", "OUTPUT", "-d", ip, "-j", "DROP"], check=True)
+        return jsonify({"success": True})
+    except subprocess.CalledProcessError as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 
 # Otomatik tahmin fonksiyonu (mobilde de kullanılabilir)
 def guess_device_type(vendor):

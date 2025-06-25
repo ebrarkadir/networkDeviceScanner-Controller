@@ -1,13 +1,28 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from scanner import scan_network
 import json
 import os
 import multiprocessing
 import subprocess
+import requests
 
 def start_api():
     subprocess.Popen(["python3", "api/server.py"])  # Arka planda Flask API'yi başlat
+
+def get_blocked_ips_from_iptables():
+    try:
+        result = subprocess.check_output(["sudo", "iptables", "-L", "OUTPUT", "-n"], text=True)
+        blocked_ips = []
+        for line in result.splitlines():
+            if "DROP" in line:
+                parts = line.split()
+                ip = parts[-1]
+                blocked_ips.append(ip)
+        return blocked_ips
+    except Exception as e:
+        print("iptables okuma hatası:", e)
+        return []
 
 class NetworkApp:
     def __init__(self, root):
@@ -22,29 +37,19 @@ class NetworkApp:
 
         style = ttk.Style()
         style.theme_use("clam")
-
-        style.configure("Treeview",
-                        background="#3a3a4a",
-                        foreground="#ffffff",
-                        rowheight=30,
-                        fieldbackground="#3a3a4a",
-                        font=("Segoe UI", 10))
-
-        style.configure("Treeview.Heading",
-                        background="#4a4a5a",
-                        foreground="white",
+        style.configure("Treeview", background="#3a3a4a", foreground="#ffffff",
+                        rowheight=30, fieldbackground="#3a3a4a", font=("Segoe UI", 10))
+        style.configure("Treeview.Heading", background="#4a4a5a", foreground="white",
                         font=("Segoe UI", 10, "bold"))
+        style.map("Treeview", background=[("selected", "#5a6e9e")])
 
-        style.map("Treeview",
-                  background=[("selected", "#5a6e9e")])
-
-        self.table = ttk.Treeview(root, columns=("IP", "MAC", "VENDOR", "SELF", "NAME", "TYPE"), show="headings")
+        self.table = ttk.Treeview(root, columns=("IP", "MAC", "VENDOR", "SELF", "NAME", "TYPE", "BLOCKED"), show="headings")
         for col in self.table["columns"]:
             self.table.heading(col, text=col)
-            self.table.column(col, anchor="center", width=140)
-
+            self.table.column(col, anchor="center", width=120)
         self.table.column("VENDOR", width=200, anchor="w")
         self.table.tag_configure("self-device", background="#446e6e")
+        self.table.tag_configure("blocked-device", background="#703a3a")
         self.table.place(x=20, y=70, width=860, height=400)
         self.table.bind("<Double-1>", self.on_device_double_click)
 
@@ -80,13 +85,24 @@ class NetworkApp:
         for row in self.table.get_children():
             self.table.delete(row)
 
+        blocked_ips = get_blocked_ips_from_iptables()
         self.devices = scan_network()
         for dev in self.devices:
             ip = dev["ip"]
-            info = self.device_info.get(ip, {"name": "", "type": self.guess_device_type(dev["vendor"])})
-            row = (ip, dev["mac"], dev["vendor"], "✅" if dev["self"] else "", info["name"], info["type"])
-            tags = ("self-device",) if dev["self"] else ()
+            is_blocked = ip in blocked_ips
+            info = self.device_info.get(ip, {
+                "name": "",
+                "type": self.guess_device_type(dev["vendor"]),
+                "blocked": is_blocked
+            })
+            info["blocked"] = is_blocked
+            self.device_info[ip] = info
+
+            row = (ip, dev["mac"], dev["vendor"], "✅" if dev["self"] else "", info["name"], info["type"], "🚫" if is_blocked else "")
+            tags = ("self-device",) if dev["self"] else ("blocked-device",) if is_blocked else ()
             self.table.insert("", "end", values=row, tags=tags)
+
+        self.save_device_info()
 
     def on_device_double_click(self, event):
         selected_item = self.table.focus()
@@ -105,7 +121,11 @@ class NetworkApp:
         detail_win.geometry("420x420")
         detail_win.configure(bg="#2e2e38")
 
-        info = self.device_info.get(device["ip"], {"name": "", "type": self.guess_device_type(device["vendor"])})
+        info = self.device_info.get(device["ip"], {
+            "name": "",
+            "type": self.guess_device_type(device["vendor"]),
+            "blocked": False
+        })
 
         labels = [
             f"IP Adresi: {device['ip']}",
@@ -114,8 +134,7 @@ class NetworkApp:
             f"Bu Cihaz: {'Evet' if device['self'] else 'Hayır'}"
         ]
         for text in labels:
-            tk.Label(detail_win, text=text, bg="#2e2e38", fg="white",
-                     font=("Segoe UI", 11)).pack(pady=3)
+            tk.Label(detail_win, text=text, bg="#2e2e38", fg="white", font=("Segoe UI", 11)).pack(pady=3)
 
         entry_frame = tk.Frame(detail_win, bg="#2e2e38")
         entry_frame.pack(pady=10)
@@ -133,11 +152,27 @@ class NetworkApp:
         def save_info():
             self.device_info[device["ip"]] = {
                 "name": name_entry.get(),
-                "type": type_entry.get()
+                "type": type_entry.get(),
+                "blocked": info.get("blocked", False)
             }
             self.save_device_info()
             self.refresh_table()
             detail_win.destroy()
+
+        def toggle_block():
+            try:
+                if info.get("blocked", False):
+                    res = requests.post("http://127.0.0.1:5000/unblock", json={"ip": device["ip"]})
+                    if res.status_code == 200 and res.json().get("success"):
+                        messagebox.showinfo("Başarılı", "Cihazın internet erişimi açıldı.")
+                else:
+                    res = requests.post("http://127.0.0.1:5000/block", json={"ip": device["ip"]})
+                    if res.status_code == 200 and res.json().get("success"):
+                        messagebox.showinfo("Başarılı", "Cihazın interneti kesildi.")
+                self.refresh_table()
+                detail_win.destroy()
+            except Exception as e:
+                messagebox.showerror("Bağlantı Hatası", str(e))
 
         tk.Button(detail_win, text="Kaydet", command=save_info,
                   bg="#4caf50", fg="white", padx=15, pady=8,
@@ -146,7 +181,14 @@ class NetworkApp:
         btn_frame = tk.Frame(detail_win, bg="#2e2e38")
         btn_frame.pack(pady=5)
 
-        for btn_text in ["İnterneti Kes", "Engelle", "Zamanla"]:
+        toggle_text = "İnterneti Aç" if info.get("blocked", False) else "İnterneti Kes"
+        toggle_color = "#5cb85c" if info.get("blocked", False) else "#d9534f"
+
+        tk.Button(btn_frame, text=toggle_text, command=toggle_block,
+                  bg=toggle_color, fg="white", relief="flat",
+                  font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
+
+        for btn_text in ["Engelle", "Zamanla"]:
             tk.Button(btn_frame, text=btn_text, state="disabled",
                       bg="#5c5c70", fg="white", relief="flat",
                       font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
@@ -164,14 +206,11 @@ class NetworkApp:
         return "Bilinmiyor"
 
 if __name__ == "__main__":
-    # API'yi başlat
     p = multiprocessing.Process(target=start_api)
     p.start()
 
-    # GUI başlat
     root = tk.Tk()
     app = NetworkApp(root)
     root.mainloop()
 
-    # GUI kapanınca API de kapatılsın
     p.terminate()
