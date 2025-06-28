@@ -2,7 +2,7 @@
   "192.168.1.100": {
     "name": "Ak\u0131ll\u0131 Priz",
     "type": "IoT Cihaz\u0131",
-    "blocked": true
+    "blocked": false
   },
   "192.168.1.10": {
     "name": "tplink modem",

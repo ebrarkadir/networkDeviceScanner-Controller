@@ -34,4 +34,4 @@ def run_scheduler():
         except Exception as e:
             print("Zamanlayıcı hatası:", e)
 
-        time.sleep(30) 
+        time.sleep(5) 
