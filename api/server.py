@@ -107,6 +107,37 @@ def unblock():
     except subprocess.CalledProcessError as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+@app.route("/schedule_block", methods=["POST"])
+def schedule_block():
+    data = request.get_json()
+    ip = data.get("ip")
+    start = data.get("start")  # "HH:MM"
+    end = data.get("end")      # "HH:MM"
+
+    if not all([ip, start, end]):
+        return jsonify({"success": False, "error": "Eksik veri"}), 400
+
+    schedule_path = "schedule.json"
+
+    # Eğer dosya varsa oku, yoksa boş liste
+    if os.path.exists(schedule_path):
+        try:
+            with open(schedule_path, "r") as f:
+                schedules = json.load(f)
+        except:
+            schedules = []
+    else:
+        schedules = []
+
+    # Aynı IP için çakışan zaman varsa güncelle
+    schedules = [entry for entry in schedules if entry["ip"] != ip]
+    schedules.append({"ip": ip, "start": start, "end": end})
+
+    with open(schedule_path, "w") as f:
+        json.dump(schedules, f, indent=2)
+
+    return jsonify({"success": True})
+
 
 # Otomatik tahmin fonksiyonu (mobilde de kullanılabilir)
 def guess_device_type(vendor):

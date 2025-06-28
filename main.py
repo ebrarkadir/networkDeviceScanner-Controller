@@ -6,9 +6,12 @@ import os
 import multiprocessing
 import subprocess
 import requests
+import threading
+import time
+from scheduler import run_scheduler  # Zamanlayıcıyı içeri aktarıyoruz
 
 def start_api():
-    subprocess.Popen(["python3", "api/server.py"])  # Arka planda Flask API'yi başlat
+    subprocess.Popen(["python3", "api/server.py"])  # Flask API'yi başlat
 
 def get_blocked_ips_from_iptables():
     try:
@@ -98,7 +101,7 @@ class NetworkApp:
             info["blocked"] = is_blocked
             self.device_info[ip] = info
 
-            row = (ip, dev["mac"], dev["vendor"], "✅" if dev["self"] else "", info["name"], info["type"], "🚫" if is_blocked else "")
+            row = (ip, dev["mac"], dev["vendor"], "✅" if dev["self"] else "", info["name"], info["type"], "⛔" if is_blocked else "")
             tags = ("self-device",) if dev["self"] else ("blocked-device",) if is_blocked else ()
             self.table.insert("", "end", values=row, tags=tags)
 
@@ -174,6 +177,40 @@ class NetworkApp:
             except Exception as e:
                 messagebox.showerror("Bağlantı Hatası", str(e))
 
+        def schedule_block():
+            win = tk.Toplevel(self.root)
+            win.title("Zamanla İnternet Kes")
+            win.geometry("300x200")
+            win.configure(bg="#2e2e38")
+
+            tk.Label(win, text="Başlangıç Saati (HH:MM)", bg="#2e2e38", fg="white").pack(pady=5)
+            start_entry = tk.Entry(win)
+            start_entry.pack(pady=5)
+
+            tk.Label(win, text="Bitiş Saati (HH:MM)", bg="#2e2e38", fg="white").pack(pady=5)
+            end_entry = tk.Entry(win)
+            end_entry.pack(pady=5)
+
+            def submit():
+                start = start_entry.get().strip()
+                end = end_entry.get().strip()
+                try:
+                    res = requests.post("http://127.0.0.1:5000/schedule_block", json={
+                        "ip": device["ip"],
+                        "start": start,
+                        "end": end
+                    })
+                    if res.status_code == 200 and res.json().get("success"):
+                        messagebox.showinfo("Başarılı", "Zamanlama kaydedildi.")
+                        win.destroy()
+                    else:
+                        messagebox.showerror("Hata", "Zamanlama yapılamadı.")
+                except Exception as e:
+                    messagebox.showerror("Bağlantı Hatası", str(e))
+
+            tk.Button(win, text="Kaydet", command=submit,
+                      bg="#4caf50", fg="white", padx=15, pady=5).pack(pady=10)
+
         tk.Button(detail_win, text="Kaydet", command=save_info,
                   bg="#4caf50", fg="white", padx=15, pady=8,
                   font=("Segoe UI", 10, "bold"), relief="flat").pack(pady=15)
@@ -188,10 +225,9 @@ class NetworkApp:
                   bg=toggle_color, fg="white", relief="flat",
                   font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
 
-        for btn_text in ["Engelle", "Zamanla"]:
-            tk.Button(btn_frame, text=btn_text, state="disabled",
-                      bg="#5c5c70", fg="white", relief="flat",
-                      font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Zamanla", command=schedule_block,
+                  bg="#5c5c70", fg="white", relief="flat",
+                  font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
 
     def guess_device_type(self, vendor):
         vendor = vendor.lower()
@@ -206,11 +242,10 @@ class NetworkApp:
         return "Bilinmiyor"
 
 if __name__ == "__main__":
-    p = multiprocessing.Process(target=start_api)
-    p.start()
+    # Flask API ve zamanlayıcıyı ayrı iş parçası olarak başlat
+    threading.Thread(target=start_api, daemon=True).start()
+    threading.Thread(target=run_scheduler, daemon=True).start()
 
     root = tk.Tk()
     app = NetworkApp(root)
     root.mainloop()
-
-    p.terminate()
