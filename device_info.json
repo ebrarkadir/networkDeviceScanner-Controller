@@ -15,26 +15,18 @@
     "blocked": false
   },
   "192.168.1.101": {
-    "name": "Samsung 24Fe",
-    "type": "Telefon",
+    "name": "samsung s24 fe",
+    "type": "telefon",
     "blocked": false
-  },
-  "192.168.1.103": {
-    "name": "openwrt",
-    "type": "router"
   },
   "192.168.1.104": {
     "name": "openwrt",
-    "type": "router"
-  },
-  "192.168.1.105": {
-    "name": "metasp",
-    "type": "Bilgisayar",
+    "type": "bilgisayar",
     "blocked": false
   },
   "192.168.1.106": {
-    "name": "kali",
-    "type": "Bilgisayar",
+    "name": "",
+    "type": "Bilinmiyor",
     "blocked": false
   }
 }

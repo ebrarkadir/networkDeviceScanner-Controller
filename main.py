@@ -8,6 +8,8 @@ import subprocess
 import requests
 import threading
 import time
+from notify import send_device_notification
+
 from scheduler import run_scheduler  # Zamanlayıcıyı içeri aktarıyoruz
 
 def start_api():
@@ -29,8 +31,9 @@ def get_blocked_ips_from_iptables():
 
 class NetworkApp:
     def __init__(self, root):
+        
         self.root = root
-        self.root.title("Ağ Cihazları Tarayıcı")
+        self.root.title("DarkMesh - Ağ Cihazları Tarayıcı")
         self.root.geometry("900x550")
         self.root.configure(bg="#2e2e38")
         self.root.resizable(False, False)
@@ -38,6 +41,23 @@ class NetworkApp:
         self.device_info_path = "device_info.json"
         self.device_info = self.load_device_info()
 
+        # --- Başlık ve Logo ---
+        header_frame = tk.Frame(root, bg="#2e2e38")
+        header_frame.pack(pady=(10, 0))
+
+        try:
+            # Logoyu yükle (şeffaf PNG olmalı, örnek: darkmesh_logo.png)
+            logo_img = tk.PhotoImage(file="darkmesh_logo.png")
+            logo_img = logo_img.subsample(4, 4)  # Gerekirse boyut küçült
+            self.logo = logo_img  # Referans tutulmalı
+            tk.Label(header_frame, image=self.logo, bg="#2e2e38").pack(side="left", padx=10)
+        except Exception as e:
+            print("Logo yüklenemedi:", e)
+
+        tk.Label(header_frame, text="DarkMesh - Ağ Cihazları Tarayıcı",
+                bg="#2e2e38", fg="white", font=("Segoe UI", 20, "bold")).pack(side="left")
+
+        # --- Tablo Teması ---
         style = ttk.Style()
         style.theme_use("clam")
         style.configure("Treeview", background="#3a3a4a", foreground="#ffffff",
@@ -46,6 +66,7 @@ class NetworkApp:
                         font=("Segoe UI", 10, "bold"))
         style.map("Treeview", background=[("selected", "#5a6e9e")])
 
+        # --- Tablo Tanımı ---
         self.table = ttk.Treeview(root, columns=("IP", "MAC", "VENDOR", "SELF", "NAME", "TYPE", "BLOCKED"), show="headings")
         for col in self.table["columns"]:
             self.table.heading(col, text=col)
@@ -56,17 +77,16 @@ class NetworkApp:
         self.table.place(x=20, y=70, width=860, height=400)
         self.table.bind("<Double-1>", self.on_device_double_click)
 
-        self.header = tk.Label(root, text="Ağ Cihazları", bg="#2e2e38", fg="white",
-                               font=("Segoe UI", 20, "bold"))
-        self.header.pack(pady=(20, 0))
-
+        # --- Yeniden Tara Butonu ---
         self.refresh_btn = tk.Button(root, text="Yeniden Tara", command=self.refresh_table,
-                                     bg="#3a70f2", fg="white", font=("Segoe UI", 11, "bold"),
-                                     relief="flat", padx=15, pady=8, activebackground="#2a60e0")
+                                    bg="#3a70f2", fg="white", font=("Segoe UI", 11, "bold"),
+                                    relief="flat", padx=15, pady=8, activebackground="#2a60e0")
         self.refresh_btn.place(x=380, y=480)
 
+        # --- Başlangıç Tarama ---
         self.devices = []
         self.refresh_table()
+
 
     def load_device_info(self):
         if os.path.exists(self.device_info_path):
@@ -88,8 +108,11 @@ class NetworkApp:
         for row in self.table.get_children():
             self.table.delete(row)
 
+        onceki_ipler = set(self.device_info.keys())
         blocked_ips = get_blocked_ips_from_iptables()
         self.devices = scan_network()
+        yeni_cihazlar = []
+
         for dev in self.devices:
             ip = dev["ip"]
             is_blocked = ip in blocked_ips
@@ -104,6 +127,12 @@ class NetworkApp:
             row = (ip, dev["mac"], dev["vendor"], "✅" if dev["self"] else "", info["name"], info["type"], "⛔" if is_blocked else "")
             tags = ("self-device",) if dev["self"] else ("blocked-device",) if is_blocked else ()
             self.table.insert("", "end", values=row, tags=tags)
+
+            if ip not in onceki_ipler:
+                yeni_cihazlar.append(dev)
+
+        for cihaz in yeni_cihazlar:
+            send_device_notification(cihaz)
 
         self.save_device_info()
 
