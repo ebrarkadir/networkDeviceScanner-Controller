@@ -9,6 +9,8 @@ import threading
 from notify import send_device_notification
 from utils.networktools import ping_device
 from scheduler import run_scheduler
+from utils.networktools import ping_device, scan_open_ports
+
 
 def start_api():
     subprocess.Popen(["python3", "api/server.py"])
@@ -204,10 +206,6 @@ class NetworkApp:
 
             threading.Thread(target=run_ping).start()
 
-        tk.Button(btn_frame, text="Ping At", command=handle_ping,
-                  bg="#3f51b5", fg="white", relief="flat",
-                  font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
-
         def save_info():
             self.device_info[device["ip"]] = {
                 "name": name_entry.get(),
@@ -232,6 +230,25 @@ class NetworkApp:
                 detail_win.destroy()
             except Exception as e:
                 messagebox.showerror("Bağlantı Hatası", str(e))
+
+        def handle_port_scan():
+            result_win = tk.Toplevel(self.root)
+            result_win.title("Port Tarama Sonuçları")
+            result_win.geometry("500x300")
+            result_win.configure(bg="#2e2e38")
+
+            result_label = tk.Label(result_win, text="Portlar taranıyor...", bg="#2e2e38", fg="white", font=("Segoe UI", 11))
+            result_label.pack(pady=10)
+
+            def run_scan():
+                ports = scan_open_ports(device["ip"])
+                if ports:
+                    result_text = "Açık Portlar:\n" + "\n".join(str(p) for p in ports)
+                else:
+                    result_text = "Açık port bulunamadı."
+                result_label.config(text=result_text)
+
+            threading.Thread(target=run_scan).start()
 
         def schedule_block():
             win = tk.Toplevel(self.root)
@@ -279,6 +296,15 @@ class NetworkApp:
         tk.Button(btn_frame, text="Zamanla", command=schedule_block,
                   bg="#5c5c70", fg="white", relief="flat",
                   font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
+        
+        tk.Button(btn_frame, text="Ping At", command=handle_ping,
+                  bg="#3f51b5", fg="white", relief="flat",
+                  font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
+
+        tk.Button(btn_frame, text="Portları Tara", command=handle_port_scan,
+                  bg="#607d8b", fg="white", relief="flat",
+                  font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
+
 
     def guess_device_type(self, vendor):
         vendor = vendor.lower()

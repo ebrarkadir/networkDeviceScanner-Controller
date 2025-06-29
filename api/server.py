@@ -4,10 +4,12 @@ import subprocess
 import platform
 
 
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # Üst dizini modül yoluna ekle
 
 from flask import Flask, jsonify, request
 from scanner import scan_network
+from utils.networktools import scan_open_ports
 import json
 
 app = Flask(__name__)
@@ -140,7 +142,6 @@ def schedule_block():
     return jsonify({"success": True})
 
 
-# server.py içine ekleyebilirsin
 @app.route("/ping", methods=["POST"])
 def ping_device():
     ip = request.json.get("ip")
@@ -152,6 +153,17 @@ def ping_device():
         return jsonify({"success": True, "output": result.stdout})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+    
+@app.route("/scan_ports", methods=["POST"])
+def scan_ports():
+    ip = request.json.get("ip")
+    if not ip:
+        return jsonify(success=False, error="IP adresi gerekli"), 400
+    try:
+        open_ports = scan_open_ports(ip)
+        return jsonify(success=True, ports=open_ports)
+    except Exception as e:
+        return jsonify(success=False, error=str(e)), 500
 
 
 # Otomatik tahmin fonksiyonu (mobilde de kullanılabilir)

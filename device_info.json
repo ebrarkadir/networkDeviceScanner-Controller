@@ -1,7 +1,7 @@
 {
   "192.168.1.100": {
     "name": "Ak\u0131ll\u0131 Priz",
-    "type": "IoT Cihaz\u0131",
+    "type": "IoT Device",
     "blocked": false
   },
   "192.168.1.10": {
@@ -11,17 +11,22 @@
   },
   "192.168.1.102": {
     "name": "Fedora",
-    "type": "Bilgisayar",
+    "type": "Computer",
     "blocked": false
   },
   "192.168.1.101": {
     "name": "samsung s24 fe",
-    "type": "telefon",
+    "type": "Phone",
     "blocked": false
   },
   "192.168.1.104": {
     "name": "",
     "type": "Bilinmiyor",
+    "blocked": false
+  },
+  "192.168.1.103": {
+    "name": "msf",
+    "type": "Computer",
     "blocked": false
   }
 }
