@@ -20,13 +20,18 @@
     "blocked": false
   },
   "192.168.1.104": {
-    "name": "",
-    "type": "Bilinmiyor",
+    "name": "OpenWRT",
+    "type": "Computer",
     "blocked": false
   },
   "192.168.1.103": {
     "name": "msf",
     "type": "Computer",
     "blocked": false
+  },
+  "192.168.1.106": {
+    "name": "Kali",
+    "type": "Computer",
+    "blocked": true
   }
 }
