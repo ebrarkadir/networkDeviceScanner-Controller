@@ -200,11 +200,25 @@ class NetworkApp:
             result_label = tk.Label(result_win, text="Ping Atılıyor...", bg="#2e2e38", fg="white", font=("Segoe UI", 11))
             result_label.pack(pady=10)
 
+            text_area = tk.Text(result_win, bg="#1e1e28", fg="white", font=("Segoe UI", 10), relief="flat")
+            text_area.pack(expand=True, fill="both", padx=10, pady=10)
+
             def run_ping():
-                result = ping_device(device["ip"])
-                result_label.config(text=result)
+                try:
+                    res = requests.post("http://127.0.0.1:5000/ping", json={"ip": device["ip"], "count": 4})
+                    if res.status_code == 200 and res.json().get("success"):
+                        output = res.json().get("result", "")
+                        result_label.config(text="Ping Başarılı")
+                        text_area.insert(tk.END, output)
+                    else:
+                        result_label.config(text="Ping Başarısız")
+                        text_area.insert(tk.END, res.json().get("message", "Hata"))
+                except Exception as e:
+                    result_label.config(text="Ping Hatası")
+                    text_area.insert(tk.END, str(e))
 
             threading.Thread(target=run_ping).start()
+
 
         def save_info():
             self.device_info[device["ip"]] = {
@@ -233,22 +247,34 @@ class NetworkApp:
 
         def handle_port_scan():
             result_win = tk.Toplevel(self.root)
-            result_win.title("Port Tarama Sonuçları")
-            result_win.geometry("500x300")
+            result_win.title("Port Taraması")
+            result_win.geometry("500x400")
             result_win.configure(bg="#2e2e38")
 
             result_label = tk.Label(result_win, text="Portlar taranıyor...", bg="#2e2e38", fg="white", font=("Segoe UI", 11))
             result_label.pack(pady=10)
 
+            text = tk.Text(result_win, bg="#1e1e28", fg="white", font=("Segoe UI", 10), relief="flat")
+            text.pack(expand=True, fill="both", padx=10, pady=10)
+
             def run_scan():
-                ports = scan_open_ports(device["ip"])
-                if ports:
-                    result_text = "Açık Portlar:\n" + "\n".join(str(p) for p in ports)
-                else:
-                    result_text = "Açık port bulunamadı."
-                result_label.config(text=result_text)
+                try:
+                    res = requests.post("http://127.0.0.1:5000/portscan", json={"ip": device["ip"]})
+                    if res.status_code == 200 and res.json().get("success"):
+                        ports = res.json()["ports"]
+                        if ports:
+                            result_label.config(text="Açık Portlar:")
+                            for item in ports:
+                                text.insert(tk.END, f"• {item['port']} → {item['description']}\n")
+                        else:
+                            result_label.config(text="Açık port bulunamadı.")
+                    else:
+                        result_label.config(text="Hata: " + res.json().get("message", "Bilinmeyen hata"))
+                except Exception as e:
+                    result_label.config(text=f"Hata: {str(e)}")
 
             threading.Thread(target=run_scan).start()
+
 
         def schedule_block():
             win = tk.Toplevel(self.root)

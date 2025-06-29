@@ -1,9 +1,7 @@
 import sys
 import os
 import subprocess
-import platform
-
-
+from flask import Flask, request, jsonify
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # Üst dizini modül yoluna ekle
 
@@ -143,27 +141,34 @@ def schedule_block():
 
 
 @app.route("/ping", methods=["POST"])
-def ping_device():
+def ping_device_api():
     ip = request.json.get("ip")
     count = int(request.json.get("count", 4))
+    if not ip:
+        return jsonify({"success": False, "message": "IP adresi gerekli"}), 400
+
     try:
-        param = "-n" if platform.system().lower() == "windows" else "-c"
-        result = subprocess.run(["ping", param, str(count), ip],
-                                capture_output=True, text=True, timeout=5)
-        return jsonify({"success": True, "output": result.stdout})
+        from utils.networktools import ping_device  # Buraya taşıdık
+        result = ping_device(ip, count)
+        return jsonify({"success": True, "result": result})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-    
-@app.route("/scan_ports", methods=["POST"])
-def scan_ports():
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+
+@app.route("/portscan", methods=["POST"])
+def port_scan_api():
     ip = request.json.get("ip")
     if not ip:
-        return jsonify(success=False, error="IP adresi gerekli"), 400
+        return jsonify({"success": False, "message": "IP adresi gerekli"}), 400
+
     try:
-        open_ports = scan_open_ports(ip)
-        return jsonify(success=True, ports=open_ports)
+        from utils.networktools import scan_open_ports
+        ports = scan_open_ports(ip)  # [(80, "http"), (443, "https"), ...]
+        ports_list = [{"port": p, "description": desc} for p, desc in ports]
+        return jsonify({"success": True, "ports": ports_list})
     except Exception as e:
-        return jsonify(success=False, error=str(e)), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
 # Otomatik tahmin fonksiyonu (mobilde de kullanılabilir)
