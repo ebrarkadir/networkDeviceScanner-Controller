@@ -13,6 +13,8 @@ def send_device_notification(device):
     logo_path = os.path.abspath("darkmesh_logo.png")
     
     subprocess.Popen([
-        "notify-send", "-i", logo_path,
-        "DarkMesh - Yeni Cihaz Tespit Edildi", message
+        "notify-send",
+        "--icon", logo_path,
+        "DarkMesh - Yeni Cihaz Tespit Edildi",
+        message
     ], env=env)

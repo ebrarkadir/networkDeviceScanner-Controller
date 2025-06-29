@@ -3,17 +3,15 @@ from tkinter import ttk, messagebox
 from scanner import scan_network
 import json
 import os
-import multiprocessing
 import subprocess
 import requests
 import threading
-import time
 from notify import send_device_notification
-
-from scheduler import run_scheduler  # Zamanlayıcıyı içeri aktarıyoruz
+from utils.networktools import ping_device
+from scheduler import run_scheduler
 
 def start_api():
-    subprocess.Popen(["python3", "api/server.py"])  # Flask API'yi başlat
+    subprocess.Popen(["python3", "api/server.py"])
 
 def get_blocked_ips_from_iptables():
     try:
@@ -31,33 +29,35 @@ def get_blocked_ips_from_iptables():
 
 class NetworkApp:
     def __init__(self, root):
-        
         self.root = root
         self.root.title("DarkMesh - Ağ Cihazları Tarayıcı")
-        self.root.geometry("900x550")
+        self.root.geometry("900x590")
         self.root.configure(bg="#2e2e38")
         self.root.resizable(False, False)
 
-        self.device_info_path = "device_info.json"
-        self.device_info = self.load_device_info()
+        icon_path = "darkmesh_logo.png"
+        if os.path.exists(icon_path):
+            try:
+                icon_img = tk.PhotoImage(file=icon_path)
+                self.root.iconphoto(False, icon_img)
+            except Exception as e:
+                print("Uygulama ikonu yüklenemedi:", e)
 
-        # --- Başlık ve Logo ---
-        header_frame = tk.Frame(root, bg="#2e2e38")
-        header_frame.pack(pady=(10, 0))
+        logo_frame = tk.Frame(root, bg="#2e2e38")
+        logo_frame.pack(pady=(10, 5))
 
         try:
-            # Logoyu yükle (şeffaf PNG olmalı, örnek: darkmesh_logo.png)
-            logo_img = tk.PhotoImage(file="darkmesh_logo.png")
-            logo_img = logo_img.subsample(4, 4)  # Gerekirse boyut küçült
-            self.logo = logo_img  # Referans tutulmalı
-            tk.Label(header_frame, image=self.logo, bg="#2e2e38").pack(side="left", padx=10)
+            logo_img = tk.PhotoImage(file=icon_path).subsample(10, 10)
+            logo_label = tk.Label(logo_frame, image=logo_img, bg="#2e2e38")
+            logo_label.image = logo_img
+            logo_label.pack(side="left", padx=(10, 10))
         except Exception as e:
             print("Logo yüklenemedi:", e)
 
-        tk.Label(header_frame, text="DarkMesh - Ağ Cihazları Tarayıcı",
-                bg="#2e2e38", fg="white", font=("Segoe UI", 20, "bold")).pack(side="left")
+        title_label = tk.Label(logo_frame, text="DarkMesh - Ağ Cihazları Tarayıcı",
+                                bg="#2e2e38", fg="white", font=("Segoe UI", 20, "bold"))
+        title_label.pack(side="left")
 
-        # --- Tablo Teması ---
         style = ttk.Style()
         style.theme_use("clam")
         style.configure("Treeview", background="#3a3a4a", foreground="#ffffff",
@@ -66,27 +66,32 @@ class NetworkApp:
                         font=("Segoe UI", 10, "bold"))
         style.map("Treeview", background=[("selected", "#5a6e9e")])
 
-        # --- Tablo Tanımı ---
         self.table = ttk.Treeview(root, columns=("IP", "MAC", "VENDOR", "SELF", "NAME", "TYPE", "BLOCKED"), show="headings")
         for col in self.table["columns"]:
             self.table.heading(col, text=col)
-            self.table.column(col, anchor="center", width=120)
-        self.table.column("VENDOR", width=200, anchor="w")
+
+        self.table.column("IP", anchor="center", width=120)
+        self.table.column("MAC", anchor="center", width=140)
+        self.table.column("VENDOR", anchor="w", width=200)
+        self.table.column("SELF", anchor="center", width=60)
+        self.table.column("NAME", anchor="center", width=120)
+        self.table.column("TYPE", anchor="center", width=120)
+        self.table.column("BLOCKED", anchor="center", width=90)
+
         self.table.tag_configure("self-device", background="#446e6e")
         self.table.tag_configure("blocked-device", background="#703a3a")
-        self.table.place(x=20, y=70, width=860, height=400)
+        self.table.place(x=20, y=120, width=860, height=400)
         self.table.bind("<Double-1>", self.on_device_double_click)
 
-        # --- Yeniden Tara Butonu ---
         self.refresh_btn = tk.Button(root, text="Yeniden Tara", command=self.refresh_table,
-                                    bg="#3a70f2", fg="white", font=("Segoe UI", 11, "bold"),
-                                    relief="flat", padx=15, pady=8, activebackground="#2a60e0")
-        self.refresh_btn.place(x=380, y=480)
+                                     bg="#e53935", fg="white", font=("Segoe UI", 11, "bold"),
+                                     relief="flat", padx=15, pady=8, activebackground="#c62828")
+        self.refresh_btn.place(x=380, y=540)
 
-        # --- Başlangıç Tarama ---
+        self.device_info_path = "device_info.json"
+        self.device_info = self.load_device_info()
         self.devices = []
         self.refresh_table()
-
 
     def load_device_info(self):
         if os.path.exists(self.device_info_path):
@@ -181,6 +186,28 @@ class NetworkApp:
         type_entry.insert(0, info["type"])
         type_entry.grid(row=1, column=1, padx=5, pady=5)
 
+        btn_frame = tk.Frame(detail_win, bg="#2e2e38")
+        btn_frame.pack(pady=5)
+
+        def handle_ping():
+            result_win = tk.Toplevel(self.root)
+            result_win.title("Ping Sonuçları")
+            result_win.geometry("500x300")
+            result_win.configure(bg="#2e2e38")
+
+            result_label = tk.Label(result_win, text="Ping Atılıyor...", bg="#2e2e38", fg="white", font=("Segoe UI", 11))
+            result_label.pack(pady=10)
+
+            def run_ping():
+                result = ping_device(device["ip"])
+                result_label.config(text=result)
+
+            threading.Thread(target=run_ping).start()
+
+        tk.Button(btn_frame, text="Ping At", command=handle_ping,
+                  bg="#3f51b5", fg="white", relief="flat",
+                  font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
+
         def save_info():
             self.device_info[device["ip"]] = {
                 "name": name_entry.get(),
@@ -244,15 +271,10 @@ class NetworkApp:
                   bg="#4caf50", fg="white", padx=15, pady=8,
                   font=("Segoe UI", 10, "bold"), relief="flat").pack(pady=15)
 
-        btn_frame = tk.Frame(detail_win, bg="#2e2e38")
-        btn_frame.pack(pady=5)
-
-        toggle_text = "İnterneti Aç" if info.get("blocked", False) else "İnterneti Kes"
-        toggle_color = "#5cb85c" if info.get("blocked", False) else "#d9534f"
-
-        tk.Button(btn_frame, text=toggle_text, command=toggle_block,
-                  bg=toggle_color, fg="white", relief="flat",
-                  font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="İnterneti Aç" if info.get("blocked", False) else "İnterneti Kes",
+                  command=toggle_block,
+                  bg="#5cb85c" if info.get("blocked", False) else "#d9534f", fg="white",
+                  relief="flat", font=("Segoe UI", 9, "bold"), padx=10, pady=5).pack(side="left", padx=5)
 
         tk.Button(btn_frame, text="Zamanla", command=schedule_block,
                   bg="#5c5c70", fg="white", relief="flat",
@@ -271,7 +293,6 @@ class NetworkApp:
         return "Bilinmiyor"
 
 if __name__ == "__main__":
-    # Flask API ve zamanlayıcıyı ayrı iş parçası olarak başlat
     threading.Thread(target=start_api, daemon=True).start()
     threading.Thread(target=run_scheduler, daemon=True).start()
 

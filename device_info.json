@@ -20,11 +20,6 @@
     "blocked": false
   },
   "192.168.1.104": {
-    "name": "openwrt",
-    "type": "bilgisayar",
-    "blocked": false
-  },
-  "192.168.1.106": {
     "name": "",
     "type": "Bilinmiyor",
     "blocked": false

@@ -1,6 +1,7 @@
 import sys
 import os
 import subprocess
+import platform
 
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # Üst dizini modül yoluna ekle
@@ -137,6 +138,20 @@ def schedule_block():
         json.dump(schedules, f, indent=2)
 
     return jsonify({"success": True})
+
+
+# server.py içine ekleyebilirsin
+@app.route("/ping", methods=["POST"])
+def ping_device():
+    ip = request.json.get("ip")
+    count = int(request.json.get("count", 4))
+    try:
+        param = "-n" if platform.system().lower() == "windows" else "-c"
+        result = subprocess.run(["ping", param, str(count), ip],
+                                capture_output=True, text=True, timeout=5)
+        return jsonify({"success": True, "output": result.stdout})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 
 # Otomatik tahmin fonksiyonu (mobilde de kullanılabilir)
